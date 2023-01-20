@@ -1,0 +1,114 @@
+From 90e4c389ab6e2a49ded08838dc649fb286a52f1d Mon Sep 17 00:00:00 2001
+From: dinbandhu12 <dinbandhu8445@gmail.com>
+Date: Fri, 20 Jan 2023 13:55:54 +0530
+Subject: [PATCH] Create Patch File
+
+---
+ fusion/__init__.py       | 2 +-
+ fusion/authentication.py | 1 +
+ fusion/fs_sync.py        | 5 ++++-
+ fusion/fusion.py         | 8 ++++++++
+ 4 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/fusion/__init__.py b/fusion/__init__.py
+index 605a694..55eda25 100644
+--- a/fusion/__init__.py
++++ b/fusion/__init__.py
+@@ -4,4 +4,4 @@ __author__ = """Fusion Devs"""
+ __email__ = 'fusion_developers@jpmorgan.com'
+ __version__ = '1.0.8'
+ 
+-from fusion.fusion import Fusion, FusionCredentials
++from fusion.fusion import Fusion, FusionCredentials, FusionError, FusionWarning, FusionWarning
+diff --git a/fusion/authentication.py b/fusion/authentication.py
+index c065fe4..16cff5a 100644
+--- a/fusion/authentication.py
++++ b/fusion/authentication.py
+@@ -435,6 +435,7 @@ class FusionOAuthAdapter(HTTPAdapter):
+             except Exception as ex:
+                 raise Exception(f'Failed to authenticate against OAuth server {ex}')
+ 
++        # If the token is expired or about to expire, refresh it before sending the request
+         token_expires_in = (self.bearer_token_expiry - datetime.datetime.now()).total_seconds()
+         if token_expires_in < self.refresh_within_seconds:
+             token, expiry = _refresh_token_data()
+diff --git a/fusion/fs_sync.py b/fusion/fs_sync.py
+index f4dc388..490ed66 100644
+--- a/fusion/fs_sync.py
++++ b/fusion/fs_sync.py
+@@ -190,7 +190,9 @@ def fsync(fs_fusion: fsspec.filesystem,
+     Returns:
+ 
+     """
+-
++    # if not isinstance(fs_fusion, fsspec.filesystem):
++    logger = logging.getLogger("fusion_fsync")
++    
+     if logger.hasHandlers():
+         logger.handlers.clear()
+     file_handler = logging.FileHandler(filename="{0}/{1}".format(log_path, "fusion_fsync.log"))
+@@ -217,6 +219,7 @@ def fsync(fs_fusion: fsspec.filesystem,
+ 
+     assert len(datasets) > 0, "The supplied products did not contain any datasets."
+ 
++    # Get the local state and the fusion state
+     local_state = pd.DataFrame()
+     while True:
+         try:
+diff --git a/fusion/fusion.py b/fusion/fusion.py
+index 8210880..022c196 100755
+--- a/fusion/fusion.py
++++ b/fusion/fusion.py
+@@ -84,6 +84,7 @@ class Fusion:
+         self.download_folder = download_folder
+         Path(download_folder).mkdir(parents=True, exist_ok=True)
+ 
++        # Set up logging to file and stdout
+         if logger.hasHandlers():
+             logger.handlers.clear()
+         file_handler = logging.FileHandler(filename="{0}/{1}".format(log_path, "fusion_sdk.log"))
+@@ -300,6 +301,7 @@ class Fusion:
+                     | df['description'].str.contains(contains, case=False)
+                 ]
+ 
++        # TODO: This is a hack to get around the fact that the API returns a list of categories
+         if max_results > -1:
+             df = df[0:max_results]
+ 
+@@ -525,6 +527,9 @@ class Fusion:
+         n_par = cpu_count(n_par)
+         required_series = self._resolve_distro_tuples(dataset, dt_str, dataset_format, catalog)
+ 
++
++        # if no download folder is specified, use the one set in __init__
++    
+         if not download_folder:
+             download_folder = self.download_folder
+ 
+@@ -541,6 +546,7 @@ class Fusion:
+             for series in required_series
+         ]
+ 
++        # if show_progress:
+         if show_progress:
+             loop = tqdm(download_spec)
+         else:
+@@ -616,6 +622,7 @@ class Fusion:
+             return_paths=True,
+         )
+ 
++        # check that all downloads were successful and raise an exception if not all were successful and return_paths is False
+         if not all(res[0] for res in download_res):
+             failed_res = [res for res in download_res if not res[0]]
+             raise Exception(
+@@ -738,6 +745,7 @@ class Fusion:
+         df = pd.DataFrame([file_path_lst, local_url_eqiv]).T
+         df.columns = ["path", "url"]
+ 
++        # TODO: add a check for the file size and the number of files to be uploaded
+         if show_progress:
+             loop = tqdm(df.iterrows(), total=len(df))
+         else:
+-- 
+2.37.2.windows.2
+
